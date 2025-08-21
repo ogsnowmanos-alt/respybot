@@ -95,19 +95,10 @@ async def resp(ctx):
     embed = discord.Embed(title="⏰ Status respów czempionów", color=0x00ff00)
     for champion, last_resp in resp_times.items():
         next_resp_time = next_resp(last_resp)
-        remaining = next_resp_time - now
-
-        if remaining.total_seconds() > 0:
-            hours, remainder = divmod(int(remaining.total_seconds()), 3600)
-            minutes, seconds = divmod(remainder, 60)
-            time_str = f"{hours}h {minutes}m {seconds}s"
-            status = f"🕐 Za: **{time_str}**"
-        else:
-            status = "✅ **DOSTĘPNY TERAZ!**"
-
+        resp_local = utc_to_poland(next_resp_time)
         embed.add_field(
             name=f"🐉 {champion}",
-            value=f"Ostatni resp: {utc_to_poland(last_resp).strftime('%H:%M:%S')}\n{status}",
+            value=f"Czas respu: {resp_local.strftime('%Y-%m-%d %H:%M:%S')}",
             inline=True
         )
 
@@ -137,7 +128,6 @@ async def set_resp(ctx, champion: str, time_str: str = None):
         description=f"**{full_name}** - czas respu ustawiony",
         color=0x00ff00
     )
-    embed.add_field(name="Następny resp za:", value=f"{RESP_TIME.total_seconds()/3600:.1f} godzin", inline=False)
     if full_name in lugus_rotation:
         next_champion = lugus_rotation[full_name]
         embed.add_field(name="🔄 Rotacja Lugusa:", value=f"Po **{full_name}** → następny resp: **{next_champion}**", inline=False)
@@ -168,47 +158,50 @@ async def ping_command(ctx):
 async def pomoc(ctx):
     embed = discord.Embed(title="🤖 Pomoc - Bot respów czempionów", description="Bot automatycznie śledzi czasy respów czempionów i pinguje 30 minut przed ich powrotem!", color=0x0099ff)
     embed.add_field(name="📋 !resp", value="Pokazuje listę wszystkich czempionów i ich czasy respów w czasie polskim", inline=False)
-    embed.add_field(name="➕ !set_resp [nazwa] [HH:MM]", value="Dodaje czempiona i ustawia jego czas respu.\nJeśli godzina nie zostanie podana, ustawia respa na teraz.\nPrzykłady: `!set_resp kowal`, `!set_resp kowal 12:21`", inline=False)
+    embed.add_field(name="➕ !set_resp [nazwa] [HH:MM]", value="Dodaje czempiona i ustawia jego czas respu.\nJeśli godzina nie zostanie podana, ustawia respa na teraz.", inline=False)
     embed.add_field(name="🗑️ !del_resp [nazwa]", value="Usuwa czempiona z listy respów", inline=False)
     embed.add_field(name="🔄 Specjalne skróty Lugusa", value="• `kowal` → Kowal Lugusa\n• `straz` → Straż Lugusa\n• Po Kowalu automatycznie respi Straż\n• Po Straży automatycznie respi Kowal", inline=False)
     embed.add_field(name="🏓 !ping", value="Pokazuje ping bota", inline=False)
-    embed.add_field(name="📝 !generate_resps [liczba]", value="Generuje przyszłe respy czempionów i wysyła wiadomości z godziną i dniem respu.", inline=False)
+    embed.add_field(name="📜 !generate_resps [liczba]", value="Generuje listę przyszłych respów od ustawionej godziny respu", inline=False)
     await ctx.send(embed=embed)
 
-# ------------------- NOWA KOMENDA - GENEROWANIE RESPÓW -------------------
 @bot.command()
-async def generate_resps(ctx, num: int = 50):
-    """Generuje i wysyła przyszłe respy czempionów."""
-    future_resps = {}
-    now = datetime.utcnow()
+async def generate_resps(ctx, number_of_resps: int):
+    if not resp_times:
+        await ctx.send("📋 Brak zapisanych respów czempionów. Najpierw ustaw resp komendą `!set_resp [nazwa] [HH:MM]`")
+        return
 
-    # generowanie respów z rotacją
-    for champion in lugus_rotation.keys():
-        last_time = now
-        for i in range(num):
-            if champion not in future_resps:
-                future_resps[champion] = []
-            last_time = next_resp(last_time)
-            future_resps[champion].append(last_time)
-            champion = lugus_rotation.get(champion, champion)  # rotacja
+    # Mapa emotikon dla czempionów
+    champion_emojis = {
+        "Kowal Lugusa": "🔨",
+        "Straż Lugusa": "🛡️"
+    }
 
-    # wysyłanie wiadomości
-    for i in range(num):
-        embed = discord.Embed(title=f"⏰ Status respów czempionów – Resp #{i+1}", color=0x00ff00)
-        for champion, times in future_resps.items():
-            resp_time = times[i]
-            remaining = resp_time - now
-            hours, remainder = divmod(int(remaining.total_seconds()), 3600)
-            minutes, seconds = divmod(remainder, 60)
-            time_str = f"{hours}h {minutes}m {seconds}s"
-            embed.add_field(
-                name=f"🐉 {champion}",
-                value=f"Czas respu: {utc_to_poland(resp_time).strftime('%H:%M:%S')}\n🕐 Za: {time_str}",
-                inline=False
+    message_lines = ["⏰ Lista przyszłych respów:"]
+    for champion, last_resp in resp_times.items():
+        resp_time = last_resp
+        current_champion = champion
+        for i in range(number_of_resps):
+            resp_time += RESP_TIME
+            resp_local = utc_to_poland(resp_time)
+            emoji = champion_emojis.get(current_champion, "🐉")
+            message_lines.append(
+                f"{emoji} {current_champion}\nCzas respu: {resp_local.strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
-        await ctx.send(embed=embed)
+            # Rotacja Lugusa
+            if current_champion in lugus_rotation:
+                current_champion = lugus_rotation[current_champion]
 
-# ------------------- OBSŁUGA BŁĘDÓW -------------------
+    # Podział na wiadomości jeśli przekroczy limit Discorda
+    message_chunk = ""
+    for line in message_lines:
+        if len(message_chunk) + len(line) > 1900:
+            await ctx.send(message_chunk)
+            message_chunk = ""
+        message_chunk += line + "\n"
+    if message_chunk:
+        await ctx.send(message_chunk)
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingRequiredArgument):
