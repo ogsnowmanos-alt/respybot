@@ -4,6 +4,8 @@ import asyncio
 from datetime import datetime, timedelta
 import os
 import pytz
+from flask import Flask
+import threading
 
 # ------------------- KONFIGURACJA -------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -15,6 +17,20 @@ RESP_TIME = timedelta(hours=5, minutes=30)  # Czas między respami czempionów
 PING_BEFORE = timedelta(minutes=30)  # Ping 30 minut przed respem
 
 POLAND_TZ = pytz.timezone("Europe/Warsaw")
+
+# ------------------- FLASK SERWER -------------------
+app = Flask("")
+
+@app.route("/")
+def home():
+    return "Bot działa! 🚀"
+
+def run():
+    app.run(host="0.0.0.0", port=8080)
+
+def keep_alive():
+    t = threading.Thread(target=run)
+    t.start()
 
 # ------------------- DISCORD BOT -------------------
 intents = discord.Intents.default()
@@ -187,4 +203,5 @@ async def on_command_error(ctx, error):
         await ctx.send(f"❌ Wystąpił błąd: {error}")
 
 # ------------------- URUCHOMIENIE BOTA -------------------
+keep_alive()
 bot.run(TOKEN)
