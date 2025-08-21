@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Status - Discord Bot Dashboard</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fab fa-discord me-2"></i>
+                Discord Bot Dashboard
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/">
+                    <i class="fas fa-home me-1"></i>
+                    Home
+                </a>
+                <a class="nav-link active" href="/bot-status">
+                    <i class="fas fa-chart-line me-1"></i>
+                    Bot Status
+                </a>
+                <a class="nav-link" href="/api/health">
+                    <i class="fas fa-heartbeat me-1"></i>
+                    Health Check
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title mb-0">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Detailed Bot Status
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        {% if bot_status %}
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card bg-dark border">
+                                    <div class="card-body text-center">
+                                        {% if bot_status.connected %}
+                                        <i class="fas fa-check-circle fs-1 text-success mb-3"></i>
+                                        <h5 class="text-success">Connected</h5>
+                                        {% else %}
+                                        <i class="fas fa-times-circle fs-1 text-danger mb-3"></i>
+                                        <h5 class="text-danger">Disconnected</h5>
+                                        {% endif %}
+                                        <p class="text-muted">Connection Status</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card bg-dark border">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-server fs-1 text-info mb-3"></i>
+                                        <h5 class="text-info">{{ bot_status.guilds or 0 }}</h5>
+                                        <p class="text-muted">Connected Servers</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card bg-dark border">
+                                    <div class="card-body text-center">
+                                        <i class="fas fa-clock fs-1 text-warning mb-3"></i>
+                                        <h5 class="text-warning">{{ bot_status.latency or 0 }}ms</h5>
+                                        <p class="text-muted">Latency</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {% if bot_status.connected %}
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="card bg-dark border">
+                                    <div class="card-header">
+                                        <h6 class="card-title mb-0">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            Bot Information
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <table class="table table-dark table-striped">
+                                            <tbody>
+                                                {% if bot_status.user %}
+                                                <tr>
+                                                    <td><strong>Bot Username</strong></td>
+                                                    <td>{{ bot_status.user }}</td>
+                                                </tr>
+                                                {% endif %}
+                                                <tr>
+                                                    <td><strong>Connection Status</strong></td>
+                                                    <td>
+                                                        <span class="badge bg-success">
+                                                            <i class="fas fa-check-circle me-1"></i>
+                                                            Online
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Server Count</strong></td>
+                                                    <td>{{ bot_status.guilds or 0 }} server(s)</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Current Latency</strong></td>
+                                                    <td id="current-latency">{{ bot_status.latency or 0 }}ms</td>
+                                                </tr>
+                                                <tr>
+                                                    <td><strong>Last Updated</strong></td>
+                                                    <td id="last-updated">Just now</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="row mt-4">
+                            <div class="col-md-12">
+                                <div class="alert alert-warning" role="alert">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>
+                                    <strong>Bot Offline:</strong> The Discord bot is currently not connected. 
+                                    Please check the bot token and network connectivity.
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% else %}
+                        <div class="text-center py-5">
+                            <i class="fas fa-exclamation-triangle fs-1 text-warning mb-3"></i>
+                            <h4>Status Unavailable</h4>
+                            <p class="text-muted">Unable to retrieve bot status information.</p>
+                            <button class="btn btn-primary" onclick="location.reload()">
+                                <i class="fas fa-sync-alt me-1"></i>
+                                Refresh
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-history me-2"></i>
+                            Real-time Updates
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="autoRefresh" checked>
+                            <label class="form-check-label" for="autoRefresh">
+                                Auto-refresh every 10 seconds
+                            </label>
+                        </div>
+                        <hr>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshStatus()">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Refresh Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0">
+                            <i class="fas fa-tools me-2"></i>
+                            Quick Actions
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <a href="/api/health" class="btn btn-sm btn-outline-success me-2">
+                            <i class="fas fa-heartbeat me-1"></i>
+                            Health Check
+                        </a>
+                        <a href="/api/bot-status" class="btn btn-sm btn-outline-info">
+                            <i class="fas fa-code me-1"></i>
+                            Raw JSON
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let refreshInterval;
+        
+        function updateLastUpdated() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            const lastUpdatedElement = document.getElementById('last-updated');
+            if (lastUpdatedElement) {
+                lastUpdatedElement.textContent = timeString;
+            }
+        }
+        
+        function refreshStatus() {
+            fetch('/api/bot-status')
+                .then(response => response.json())
+                .then(data => {
+                    // Update latency
+                    const latencyElement = document.getElementById('current-latency');
+                    if (latencyElement && data.latency !== undefined) {
+                        latencyElement.textContent = data.latency + 'ms';
+                    }
+                    
+                    updateLastUpdated();
+                    
+                    // Show success feedback
+                    const button = document.querySelector('button[onclick="refreshStatus()"]');
+                    if (button) {
+                        const originalText = button.innerHTML;
+                        button.innerHTML = '<i class="fas fa-check me-1"></i>Updated';
+                        button.classList.add('btn-success');
+                        button.classList.remove('btn-outline-primary');
+                        
+                        setTimeout(() => {
+                            button.innerHTML = originalText;
+                            button.classList.remove('btn-success');
+                            button.classList.add('btn-outline-primary');
+                        }, 1500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching bot status:', error);
+                    const button = document.querySelector('button[onclick="refreshStatus()"]');
+                    if (button) {
+                        const originalText = button.innerHTML;
+                        button.innerHTML = '<i class="fas fa-times me-1"></i>Failed';
+                        button.classList.add('btn-danger');
+                        button.classList.remove('btn-outline-primary');
+                        
+                        setTimeout(() => {
+                            button.innerHTML = originalText;
+                            button.classList.remove('btn-danger');
+                            button.classList.add('btn-outline-primary');
+                        }, 1500);
+                    }
+                });
+        }
+        
+        function toggleAutoRefresh() {
+            const autoRefreshCheckbox = document.getElementById('autoRefresh');
+            
+            if (autoRefreshCheckbox.checked) {
+                refreshInterval = setInterval(refreshStatus, 10000);
+            } else {
+                clearInterval(refreshInterval);
+            }
+        }
+        
+        // Set up auto-refresh
+        document.getElementById('autoRefresh').addEventListener('change', toggleAutoRefresh);
+        
+        // Start auto-refresh by default
+        refreshInterval = setInterval(refreshStatus, 10000);
+        
+        // Initial timestamp update
+        updateLastUpdated();
+    </script>
+</body>
+</html>
