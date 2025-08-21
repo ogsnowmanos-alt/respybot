@@ -1,48 +1,19 @@
 import discord
 from discord.ext import commands, tasks
-import asyncio
 from datetime import datetime, timedelta
 import os
 import pytz
-from flask import Flask
-import threading
 
 # ------------------- KONFIGURACJA -------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-PORT = int(os.getenv("PORT", 8080))  # Port ustawiany przez Render Web Service
 
-GUILD_ID = 1394086742436614316  # ID serwera Discord
-CHANNEL_ID = 1394086743061299349  # ID kanału do pingowania respów
+GUILD_ID = 1394086742436614316
+CHANNEL_ID = 1394086743061299349
 
-RESP_TIME = timedelta(hours=5, minutes=30)  # Czas między respami czempionów
-PING_BEFORE = timedelta(minutes=30)  # Ping 30 minut przed respem
+RESP_TIME = timedelta(hours=5, minutes=30)
+PING_BEFORE = timedelta(minutes=30)
 
 POLAND_TZ = pytz.timezone("Europe/Warsaw")
-
-# ------------------- FLASK SERWER -------------------
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return """
-    <h1>Bot do trackowania respów czempionów działa! 🚀</h1>
-    <p>Sprawdź status bota na Discordzie.</p>
-    """
-
-@app.route("/status")
-def status():
-    return {
-        "flask": "running",
-        "discord_bot": "online",
-        "commands": ["!resp", "!set_resp", "!del_resp", "!pomoc"]
-    }
-
-def run_flask():
-    app.run(host="0.0.0.0", port=PORT)
-
-def start_flask():
-    t = threading.Thread(target=run_flask)
-    t.start()
 
 # ------------------- DISCORD BOT -------------------
 intents = discord.Intents.default()
@@ -52,7 +23,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ------------------- ZMIENNE -------------------
-resp_times = {}  # {czempion: datetime}
+resp_times = {}
 champion_aliases = {
     "kowal": "Kowal Lugusa",
     "straz": "Straż Lugusa"
@@ -72,7 +43,7 @@ async def ping_resp(champion, channel):
 def utc_to_poland(utc_dt):
     return utc_dt.replace(tzinfo=pytz.utc).astimezone(POLAND_TZ)
 
-# ------------------- TASK SPRAWDZAJĄCY RESP -------------------
+# ------------------- TASK -------------------
 @tasks.loop(seconds=30)
 async def check_resp():
     now = datetime.utcnow()
@@ -80,13 +51,11 @@ async def check_resp():
         next_resp_time = next_resp(last_resp)
         time_until_next_resp = next_resp_time - now
 
-        # Ping 30 minut przed respem
         if PING_BEFORE >= time_until_next_resp > PING_BEFORE - timedelta(seconds=30):
             channel = bot.get_channel(CHANNEL_ID)
             if channel:
                 await ping_resp(champion, channel)
 
-        # Sprawdzenie, czy już można liczyć kolejny resp
         if time_until_next_resp.total_seconds() <= 0:
             if champion in lugus_rotation:
                 next_champion = lugus_rotation[champion]
@@ -215,5 +184,4 @@ async def on_command_error(ctx, error):
         await ctx.send(f"❌ Wystąpił błąd: {error}")
 
 # ------------------- URUCHOMIENIE BOTA -------------------
-start_flask()
 bot.run(TOKEN)
