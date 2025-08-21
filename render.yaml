@@ -1,8 +1,11 @@
 services:
-  - type: web
-    name: respybot
+  - type: worker
+    name: respybot-1
     env: python
-    plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python discordbot.py"
-    autoDeploy: true
+    branch: main
+    startCommand: python bot.py
+    buildCommand: pip install -r requirements.txt
+    envVars:
+      - key: DISCORD_BOT_TOKEN
+        fromDatabase: false
+        value: "wstaw_tutaj_token_bota"
