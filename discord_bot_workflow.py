@@ -1,15 +1,36 @@
+#!/usr/bin/env python3
+"""
+Discord Bot Workflow Runner
+Uruchamia Discord bota w trybie workflow z obsługą błędów i restartów
+"""
+
+import asyncio
+import os
+import signal
+import sys
+from datetime import datetime
+import logging
+
+# Importy Discord bota
 import discord
 from discord.ext import commands, tasks
-import asyncio
-from datetime import datetime, timedelta
-import os
+from datetime import timedelta
+
+# Konfiguracja logowania
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('discord_bot_workflow.log')
+    ]
+)
+logger = logging.getLogger('discord_bot_workflow')
 
 # ------------------- KONFIGURACJA -------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-# Ustawienia serwera i kanału:
 GUILD_ID = 1394086742436614316  # ID serwera Discord
 CHANNEL_ID = 1394086743061299349  # ID kanału do pingowania respów
-
 RESP_TIME = timedelta(hours=5, minutes=30)  # Czas między respami czempionów
 
 # ------------------- DISCORD BOT -------------------
@@ -20,16 +41,13 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ------------------- ZMIENNE -------------------
-# Przechowuje czasy respów w formacie {czempion: datetime}
 resp_times = {}
 
-# Mapowanie skrótów na pełne nazwy
 champion_aliases = {
     "kowal": "Kowal Lugusa",
     "straz": "Straż Lugusa"
 }
 
-# System rotacji czempionów Lugusa
 lugus_rotation = {
     "Kowal Lugusa": "Straż Lugusa",
     "Straż Lugusa": "Kowal Lugusa"
@@ -52,7 +70,6 @@ async def check_resp():
         
         # Jeśli zostało 30 minut lub mniej do respu
         if 0 < remaining_seconds <= 1800:  # 30 minut = 1800 sekund
-            # Znajdź kanał do pingowania
             channel = bot.get_channel(CHANNEL_ID)
             
             if channel:
@@ -71,34 +88,33 @@ async def check_resp():
 
 @bot.event
 async def on_ready():
-    print(f'🤖 {bot.user} jest online!')
-    print(f'📊 Bot jest na {len(bot.guilds)} serwerach')
+    logger.info(f'🤖 {bot.user} jest online!')
+    logger.info(f'📊 Bot jest na {len(bot.guilds)} serwerach')
     
     # Sprawdź czy bot ma dostęp do konkretnego serwera i kanału
     guild = bot.get_guild(GUILD_ID)
     if guild:
-        print(f'✅ Połączony z serwerem: {guild.name}')
+        logger.info(f'✅ Połączony z serwerem: {guild.name}')
         channel = guild.get_channel(CHANNEL_ID)
         if channel:
-            print(f'✅ Dostęp do kanału: {channel.name}')
-            # Sprawdź uprawnienia
+            logger.info(f'✅ Dostęp do kanału: {channel.name}')
             permissions = channel.permissions_for(guild.me)
-            print(f'📋 Uprawnienia: read_messages={permissions.read_messages}, send_messages={permissions.send_messages}')
+            logger.info(f'📋 Uprawnienia: read_messages={permissions.read_messages}, send_messages={permissions.send_messages}')
         else:
-            print(f'❌ Brak dostępu do kanału o ID: {CHANNEL_ID}')
+            logger.error(f'❌ Brak dostępu do kanału o ID: {CHANNEL_ID}')
     else:
-        print(f'❌ Brak dostępu do serwera o ID: {GUILD_ID}')
+        logger.error(f'❌ Brak dostępu do serwera o ID: {GUILD_ID}')
     
     # Uruchom sprawdzanie respów
     if not check_resp.is_running():
         check_resp.start()
-        print("⏰ Timer sprawdzania respów uruchomiony!")
+        logger.info("⏰ Timer sprawdzania respów uruchomiony!")
 
 @bot.event
 async def on_message(message):
     # Debug - loguj otrzymane wiadomości zaczynające się od !
     if message.content.startswith('!') and not message.author.bot:
-        print(f'📨 Odebrano komendę: {message.content} od {message.author}')
+        logger.info(f'📨 Odebrano komendę: {message.content} od {message.author}')
     
     # Ważne: pozwól botowi przetwarzać komendy
     await bot.process_commands(message)
@@ -147,33 +163,36 @@ async def set_resp(ctx, *, champion: str):
         full_name = champion.title()
         short_name = champion
     
-    resp_times[full_name] = datetime.utcnow()
+    now = datetime.utcnow()
+    resp_times[full_name] = now
     
     embed = discord.Embed(
-        title="✅ Resp zapisany!",
-        description=f"**{full_name}** - czas respu ustawiony na teraz",
+        title="✅ Resp ustawiony",
+        description=f"**{full_name}** - resp ustawiony na teraz",
         color=0x00ff00
     )
+    
+    next_resp_time = next_resp(now)
     embed.add_field(
-        name="Następny resp za:",
-        value=f"{RESP_TIME.total_seconds() / 3600:.1f} godzin",
-        inline=False
+        name="⏰ Następny resp",
+        value=f"{next_resp_time.strftime('%H:%M:%S')} UTC",
+        inline=True
     )
     
-    # Dodatkowe informacje dla czempionów Lugusa
+    # Jeśli to Lugus, wyjaśnij rotację
     if full_name in lugus_rotation:
         next_champion = lugus_rotation[full_name]
         embed.add_field(
-            name="🔄 Rotacja Lugusa:",
-            value=f"Po śmierci **{full_name}** → następny resp: **{next_champion}**",
-            inline=False
+            name="🔄 Po tym respie",
+            value=f"Automatycznie ustawiony: **{next_champion}**",
+            inline=True
         )
     
     await ctx.send(embed=embed)
 
 @bot.command()
 async def del_resp(ctx, *, champion: str):
-    """Usuwa zapisany czas respu czempiona"""
+    """Usuwa czempiona z listy respów"""
     champion = champion.strip().lower()
     
     # Sprawdź czy to skrót
@@ -214,7 +233,7 @@ async def pomoc(ctx):
     """Pokazuje pomoc dla komend bota"""
     embed = discord.Embed(
         title="🤖 Pomoc - Bot respów czempionów",
-        description="Bot automatycznie śledzi czasy respów czempionów i pinguje 5 minut przed ich powrotem!",
+        description="Bot automatycznie śledzi czasy respów czempionów i pinguje 30 minut przed ich powrotem!",
         color=0x0099ff
     )
     
@@ -264,31 +283,77 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.CommandNotFound):
         return  # Ignoruj nieznane komendy
     else:
-        print(f"Błąd komendy: {error}")
+        logger.error(f"Błąd komendy: {error}")
         await ctx.send("❌ Wystąpił błąd podczas wykonywania komendy.")
 
-# ------------------- URUCHOMIENIE -------------------
+# ------------------- WORKFLOW RUNNER -------------------
+class DiscordBotWorkflow:
+    def __init__(self):
+        self.running = False
+        self.restart_count = 0
+        
+    async def run_with_restart(self):
+        """Uruchom bota z automatycznym restartem"""
+        while True:
+            try:
+                if not TOKEN:
+                    logger.error("❌ Brak tokenu Discord!")
+                    break
+                logger.info("🚀 Uruchamianie Discord bota w workflow...")
+                self.running = True
+                await bot.start(TOKEN)
+            except discord.LoginFailure:
+                logger.error("❌ BŁĄD: Nieprawidłowy token Discord bota!")
+                break
+            except KeyboardInterrupt:
+                logger.info("🔄 Bot zatrzymany przez użytkownika")
+                break
+            except Exception as e:
+                self.restart_count += 1
+                logger.error(f"❌ BŁĄD ({self.restart_count}): {e}")
+                
+                if self.restart_count > 10:
+                    logger.error("🛑 Zbyt wiele restartów - zatrzymuję bota")
+                    break
+                
+                logger.info(f"🔄 Restart za 5 sekund... (próba {self.restart_count})")
+                await asyncio.sleep(5)
+                
+                # Reset bota dla kolejnej próby
+                if not bot.is_closed():
+                    await bot.close()
+    
+    def stop(self):
+        """Zatrzymaj workflow"""
+        self.running = False
+        logger.info("🛑 Zatrzymywanie Discord bota workflow...")
+
+# ------------------- MAIN -------------------
 async def main():
     if not TOKEN:
-        print("❌ BŁĄD: Nie znaleziono tokenu Discord bota!")
-        print("📝 Ustaw zmienną środowiskową DISCORD_BOT_TOKEN")
+        logger.error("❌ BŁĄD: Nie znaleziono tokenu Discord bota!")
+        logger.error("📝 Ustaw zmienną środowiskową DISCORD_BOT_TOKEN")
         return
     
+    workflow = DiscordBotWorkflow()
+    
+    # Obsługa sygnałów dla graceful shutdown
+    def signal_handler(signum, frame):
+        logger.info(f"🔄 Otrzymano sygnał {signum}")
+        workflow.stop()
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
     try:
-        print("🚀 Uruchamianie Discord bota...")
-        await bot.start(TOKEN)
-    except discord.LoginFailure:
-        print("❌ BŁĄD: Nieprawidłowy token Discord bota!")
+        await workflow.run_with_restart()
     except KeyboardInterrupt:
-        print("🔄 Bot zatrzymany przez użytkownika")
-    except Exception as e:
-        print(f"❌ BŁĄD: {e}")
-        import traceback
-        traceback.print_exc()
-
-def run_bot():
-    """Funkcja do uruchomienia bota w workflow"""
-    asyncio.run(main())
+        logger.info("🔄 Bot zatrzymany")
+    finally:
+        if not bot.is_closed():
+            await bot.close()
+        logger.info("👋 Discord bot workflow zakończony")
 
 if __name__ == "__main__":
-    run_bot()
+    asyncio.run(main())
