@@ -1,11 +1,11 @@
 services:
-  - type: worker
-    name: respybot-1
+  - type: web
+    name: discord-bot-lugus
     env: python
-    branch: main
-    startCommand: python bot.py
+    region: oregon
+    plan: free
     buildCommand: pip install -r requirements.txt
+    startCommand: python discord_bot.py
     envVars:
       - key: DISCORD_BOT_TOKEN
-        fromDatabase: false
-        value: "wstaw_tutaj_token_bota"
+        fromDatabase: DISCORD_BOT_TOKEN  # możesz też wpisać bezpośrednio: value: "TwójToken"
