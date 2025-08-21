@@ -74,10 +74,34 @@ async def on_ready():
     print(f'🤖 {bot.user} jest online!')
     print(f'📊 Bot jest na {len(bot.guilds)} serwerach')
     
+    # Sprawdź czy bot ma dostęp do konkretnego serwera i kanału
+    guild = bot.get_guild(GUILD_ID)
+    if guild:
+        print(f'✅ Połączony z serwerem: {guild.name}')
+        channel = guild.get_channel(CHANNEL_ID)
+        if channel:
+            print(f'✅ Dostęp do kanału: {channel.name}')
+            # Sprawdź uprawnienia
+            permissions = channel.permissions_for(guild.me)
+            print(f'📋 Uprawnienia: read_messages={permissions.read_messages}, send_messages={permissions.send_messages}')
+        else:
+            print(f'❌ Brak dostępu do kanału o ID: {CHANNEL_ID}')
+    else:
+        print(f'❌ Brak dostępu do serwera o ID: {GUILD_ID}')
+    
     # Uruchom sprawdzanie respów
     if not check_resp.is_running():
         check_resp.start()
         print("⏰ Timer sprawdzania respów uruchomiony!")
+
+@bot.event
+async def on_message(message):
+    # Debug - loguj otrzymane wiadomości zaczynające się od !
+    if message.content.startswith('!') and not message.author.bot:
+        print(f'📨 Odebrano komendę: {message.content} od {message.author}')
+    
+    # Ważne: pozwól botowi przetwarzać komendy
+    await bot.process_commands(message)
 
 # ------------------- KOMENDY -------------------
 @bot.command()
@@ -252,12 +276,15 @@ async def main():
     
     try:
         print("🚀 Uruchamianie Discord bota...")
-        async with bot:
-            await bot.start(TOKEN)
+        await bot.start(TOKEN)
     except discord.LoginFailure:
         print("❌ BŁĄD: Nieprawidłowy token Discord bota!")
+    except KeyboardInterrupt:
+        print("🔄 Bot zatrzymany przez użytkownika")
     except Exception as e:
         print(f"❌ BŁĄD: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     asyncio.run(main())
