@@ -9,6 +9,7 @@ import threading
 
 # ------------------- KONFIGURACJA -------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+PORT = int(os.getenv("PORT", 8080))  # Port ustawiany przez Render Web Service
 
 GUILD_ID = 1394086742436614316  # ID serwera Discord
 CHANNEL_ID = 1394086743061299349  # ID kanału do pingowania respów
@@ -19,17 +20,28 @@ PING_BEFORE = timedelta(minutes=30)  # Ping 30 minut przed respem
 POLAND_TZ = pytz.timezone("Europe/Warsaw")
 
 # ------------------- FLASK SERWER -------------------
-app = Flask("")
+app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Bot działa! 🚀"
+    return """
+    <h1>Bot do trackowania respów czempionów działa! 🚀</h1>
+    <p>Sprawdź status bota na Discordzie.</p>
+    """
 
-def run():
-    app.run(host="0.0.0.0", port=8080)
+@app.route("/status")
+def status():
+    return {
+        "flask": "running",
+        "discord_bot": "online",
+        "commands": ["!resp", "!set_resp", "!del_resp", "!pomoc"]
+    }
 
-def keep_alive():
-    t = threading.Thread(target=run)
+def run_flask():
+    app.run(host="0.0.0.0", port=PORT)
+
+def start_flask():
+    t = threading.Thread(target=run_flask)
     t.start()
 
 # ------------------- DISCORD BOT -------------------
@@ -203,5 +215,5 @@ async def on_command_error(ctx, error):
         await ctx.send(f"❌ Wystąpił błąd: {error}")
 
 # ------------------- URUCHOMIENIE BOTA -------------------
-keep_alive()
+start_flask()
 bot.run(TOKEN)
