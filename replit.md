@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a Discord bot with an integrated Flask web dashboard for monitoring and management. The application runs both a Discord bot and a web server concurrently, allowing users to view bot status, health metrics, and operational details through a web interface. The bot uses Discord.py for bot functionality and Flask for the web dashboard, with a dark-themed Bootstrap UI for a modern user experience.
+This project is a Discord bot specialized for tracking MMORPG champion respawns, specifically "Kowal Lugusa" and "Straż Lugusa" champions, with automatic rotation system and Polish language interface. The bot includes integrated Flask web dashboard for monitoring. The application runs both Discord bot and web server concurrently, with the bot configured for a specific Discord server (ID: 1394086742436614316) and channel (ID: 1394086743061299349) for respawn notifications.
 
 ## User Preferences
 
@@ -17,7 +17,7 @@ The application uses a dual-service architecture where both Flask web server and
 Flask serves as the web framework with Jinja2 templating for dynamic content rendering. The application uses Bootstrap with a dark theme for consistent UI styling and Font Awesome for iconography. ProxyFix middleware handles proxy headers for proper deployment behind reverse proxies.
 
 ### Bot Framework
-Discord.py provides the core bot functionality with configurable intents for message content and guild access. The bot implements event handlers for connection lifecycle management and includes slash command synchronization for modern Discord interactions.
+Discord.py provides the core bot functionality with configurable intents for message content and guild access. The bot specializes in MMORPG champion respawn tracking with Polish language commands (!resp, !set_resp, !del_resp, !ping, !pomoc). Features automatic Lugusa champion rotation system (Kowal ↔ Straż) with 5.5-hour respawn timers and 30-minute warning notifications sent to configured Discord channel (1394086743061299349).
 
 ### Status Monitoring System
 A global bot status tracking system maintains real-time information about bot connectivity, guild count, latency, and user details. This status is exposed through both web pages and REST API endpoints for programmatic access.

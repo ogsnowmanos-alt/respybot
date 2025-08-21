@@ -6,9 +6,9 @@ import os
 
 # ------------------- KONFIGURACJA -------------------
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-# Ustaw te wartości dla swojego serwera i kanału:
-GUILD_ID = None  # Wklej ID serwera (opcjonalne)
-CHANNEL_ID = None  # Wklej ID kanału, gdzie bot będzie pingował (opcjonalne - użyje aktualnego kanału)
+# Ustawienia serwera i kanału:
+GUILD_ID = 1394086742436614316  # ID serwera Discord
+CHANNEL_ID = 1394086743061299349  # ID kanału do pingowania respów
 
 RESP_TIME = timedelta(hours=5, minutes=30)  # Czas między respami czempionów
 
@@ -53,18 +53,7 @@ async def check_resp():
         # Jeśli zostało 30 minut lub mniej do respu
         if 0 < remaining_seconds <= 1800:  # 30 minut = 1800 sekund
             # Znajdź kanał do pingowania
-            channel = None
-            if CHANNEL_ID:
-                channel = bot.get_channel(CHANNEL_ID)
-            else:
-                # Jeśli nie ma ustawionego kanału, użyj pierwszego dostępnego kanału tekstowego
-                for guild in bot.guilds:
-                    for ch in guild.text_channels:
-                        if ch.permissions_for(guild.me).send_messages:
-                            channel = ch
-                            break
-                    if channel:
-                        break
+            channel = bot.get_channel(CHANNEL_ID)
             
             if channel:
                 await ping_resp(champion, channel)
@@ -185,6 +174,17 @@ async def del_resp(ctx, *, champion: str):
     
     await ctx.send(embed=embed)
 
+@bot.command(name="ping")
+async def ping_command(ctx):
+    """Wyświetla ping bota"""
+    latency = round(bot.latency * 1000)  # Konwersja na milisekundy
+    embed = discord.Embed(
+        title="🏓 Ping Bota",
+        description=f"**Opóźnienie:** {latency}ms",
+        color=0x00ff00 if latency < 100 else 0xff9900 if latency < 300 else 0xff0000
+    )
+    await ctx.send(embed=embed)
+
 @bot.command(name='pomoc')
 async def pomoc(ctx):
     """Pokazuje pomoc dla komend bota"""
@@ -197,6 +197,12 @@ async def pomoc(ctx):
     embed.add_field(
         name="📋 !resp",
         value="Pokazuje listę wszystkich czempionów i ich czasy respów",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🏓 !ping",
+        value="Wyświetla opóźnienie bota do Discord",
         inline=False
     )
     
