@@ -28,7 +28,7 @@ def next_resp(last_resp):
     return last_resp + RESP_TIME
 
 async def ping_resp(champion, channel):
-    await channel.send(f"🔔 @everyone **{champion}** resp w lochu za 5 minut! 🔔")
+    await channel.send(f"🔔 @everyone **{champion}** resp w lochu za 30 minut! 🔔")
 
 # ------------------- TASK SPRAWDZAJĄCY RESP -------------------
 @tasks.loop(minutes=1)
@@ -38,8 +38,8 @@ async def check_resp():
         next_resp_time = last_resp + RESP_TIME
         remaining_seconds = (next_resp_time - now).total_seconds()
         
-        # Jeśli zostało 5 minut lub mniej do respu
-        if 0 < remaining_seconds <= 300:  # 5 minut = 300 sekund
+        # Jeśli zostało 30 minut lub mniej do respu
+        if 0 < remaining_seconds <= 1800:  # 30 minut = 1800 sekund
             # Znajdź kanał do pingowania
             channel = None
             if CHANNEL_ID:
@@ -170,7 +170,7 @@ async def pomoc(ctx):
     
     embed.add_field(
         name="ℹ️ Informacje",
-        value=f"• Czas między respami: **{RESP_TIME.total_seconds() / 3600:.1f} godzin**\n• Bot pinguje @everyone 5 minut przed respem\n• Wszystkie czasy w UTC",
+        value=f"• Czas między respami: **{RESP_TIME.total_seconds() / 3600:.1f} godzin**\n• Bot pinguje @everyone 30 minut przed respem\n• Wszystkie czasy w UTC",
         inline=False
     )
     

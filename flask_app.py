@@ -14,7 +14,7 @@ def home():
         <li><code>!del_resp [nazwa_czempiona]</code> - usuwa czempiona z listy</li>
         <li><code>!pomoc</code> - pomoc</li>
     </ul>
-    <p>Bot automatycznie pinguje @everyone 5 minut przed respem czempiona!</p>
+    <p>Bot automatycznie pinguje @everyone 30 minut przed respem czempiona!</p>
     <p><strong>Status Discord bota:</strong> Sprawdź w konsoli czy bot się połączył</p>
     """
 
