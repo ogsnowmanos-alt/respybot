@@ -23,6 +23,18 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # Przechowuje czasy respów w formacie {czempion: datetime}
 resp_times = {}
 
+# Mapowanie skrótów na pełne nazwy
+champion_aliases = {
+    "kowal": "Kowal Lugusa",
+    "straz": "Straż Lugusa"
+}
+
+# System rotacji czempionów Lugusa
+lugus_rotation = {
+    "Kowal Lugusa": "Straż Lugusa",
+    "Straż Lugusa": "Kowal Lugusa"
+}
+
 # ------------------- FUNKCJE -------------------
 def next_resp(last_resp):
     return last_resp + RESP_TIME
@@ -57,8 +69,16 @@ async def check_resp():
             if channel:
                 await ping_resp(champion, channel)
             
-            # Ustaw następny czas respu
-            resp_times[champion] = next_resp_time
+            # Jeśli to czempion Lugusa, ustaw rotację na następnego
+            if champion in lugus_rotation:
+                next_champion = lugus_rotation[champion]
+                resp_times[next_champion] = next_resp_time
+                # Usuń poprzedniego czempiona
+                if champion in resp_times:
+                    del resp_times[champion]
+            else:
+                # Dla innych czempionów - normalny resp
+                resp_times[champion] = next_resp_time
 
 @bot.event
 async def on_ready():
@@ -104,12 +124,21 @@ async def resp(ctx):
 @bot.command()
 async def set_resp(ctx, *, champion: str):
     """Ręcznie ustawia czas resp czempiona na teraz"""
-    champion = champion.strip().title()
-    resp_times[champion] = datetime.utcnow()
+    champion = champion.strip().lower()
+    
+    # Sprawdź czy to skrót
+    if champion in champion_aliases:
+        full_name = champion_aliases[champion]
+        short_name = champion
+    else:
+        full_name = champion.title()
+        short_name = champion
+    
+    resp_times[full_name] = datetime.utcnow()
     
     embed = discord.Embed(
         title="✅ Resp zapisany!",
-        description=f"**{champion}** - czas respu ustawiony na teraz",
+        description=f"**{full_name}** - czas respu ustawiony na teraz",
         color=0x00ff00
     )
     embed.add_field(
@@ -118,24 +147,39 @@ async def set_resp(ctx, *, champion: str):
         inline=False
     )
     
+    # Dodatkowe informacje dla czempionów Lugusa
+    if full_name in lugus_rotation:
+        next_champion = lugus_rotation[full_name]
+        embed.add_field(
+            name="🔄 Rotacja Lugusa:",
+            value=f"Po śmierci **{full_name}** → następny resp: **{next_champion}**",
+            inline=False
+        )
+    
     await ctx.send(embed=embed)
 
 @bot.command()
 async def del_resp(ctx, *, champion: str):
     """Usuwa zapisany czas respu czempiona"""
-    champion = champion.strip().title()
+    champion = champion.strip().lower()
     
-    if champion in resp_times:
-        del resp_times[champion]
+    # Sprawdź czy to skrót
+    if champion in champion_aliases:
+        full_name = champion_aliases[champion]
+    else:
+        full_name = champion.title()
+    
+    if full_name in resp_times:
+        del resp_times[full_name]
         embed = discord.Embed(
             title="🗑️ Resp usunięty",
-            description=f"**{champion}** został usunięty z listy respów",
+            description=f"**{full_name}** został usunięty z listy respów",
             color=0xff6b6b
         )
     else:
         embed = discord.Embed(
             title="❌ Nie znaleziono",
-            description=f"Nie znaleziono czempiona **{champion}** na liście",
+            description=f"Nie znaleziono czempiona **{full_name}** na liście",
             color=0xff6b6b
         )
     
@@ -158,13 +202,19 @@ async def pomoc(ctx):
     
     embed.add_field(
         name="➕ !set_resp [nazwa]",
-        value="Dodaje czempiona i ustawia jego czas respu na teraz\nPrzykład: `!set_resp Smok Lodowy`",
+        value="Dodaje czempiona i ustawia jego czas respu na teraz\nPrzykłady: `!set_resp kowal`, `!set_resp straz`, `!set_resp Smok Lodowy`",
         inline=False
     )
     
     embed.add_field(
         name="🗑️ !del_resp [nazwa]",
         value="Usuwa czempiona z listy respów\nPrzykład: `!del_resp Smok Lodowy`",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🔄 Specjalne skróty Lugusa:",
+        value="• `kowal` → Kowal Lugusa\n• `straz` → Straż Lugusa\n• Po Kowalu automatycznie respi Straż\n• Po Straży automatycznie respi Kowal",
         inline=False
     )
     
