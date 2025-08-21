@@ -1,11 +1,16 @@
 services:
   - type: web
-    name: discord-bot-lugus
+    name: flask-web
     env: python
-    region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python discord_bot.py
-    envVars:
-      - key: DISCORD_BOT_TOKEN
-        fromDatabase: DISCORD_BOT_TOKEN  # możesz też wpisać bezpośrednio: value: "TwójToken"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn main:app"
+    autoDeploy: true
+
+  - type: worker
+    name: discord-bot
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python discord_bot.py"
+    autoDeploy: true
