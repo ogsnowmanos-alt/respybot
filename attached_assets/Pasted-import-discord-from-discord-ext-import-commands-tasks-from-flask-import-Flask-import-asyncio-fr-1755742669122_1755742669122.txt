@@ -1,0 +1,88 @@
+import discord
+from discord.ext import commands, tasks
+from flask import Flask
+import asyncio
+from datetime import datetime, timedelta
+import threading
+
+# ------------------- KONFIGURACJA -------------------
+TOKEN = "TWÓJ_DISCORD_TOKEN"  # Wklej tutaj token swojego bota
+GUILD_ID = 123456789012345678  # Wklej ID serwera
+CHANNEL_ID = 123456789012345678  # Wklej ID kanału, gdzie bot będzie pingował
+
+RESP_TIME = timedelta(hours=5, minutes=30)  # Czas między respami czempionów
+
+# ------------------- FLASK -------------------
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot działa!"
+
+# ------------------- DISCORD BOT -------------------
+intents = discord.Intents.default()
+intents.messages = True
+intents.message_content = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# ------------------- ZMIENNE -------------------
+# Przechowuje czasy respów w formacie {czempion: datetime}
+resp_times = {}
+
+# ------------------- FUNKCJE -------------------
+def next_resp(last_resp):
+    return last_resp + RESP_TIME
+
+async def ping_resp(champion):
+    channel = bot.get_channel(CHANNEL_ID)
+    await channel.send(f"@everyone {champion} resp w lochu za 5 minut!")
+
+# ------------------- TASK SPRAWDZAJĄCY RESP -------------------
+@tasks.loop(minutes=1)
+async def check_resp():
+    now = datetime.utcnow()
+    for champion, last_resp in resp_times.items():
+        if 0 < (last_resp + RESP_TIME - now).total_seconds() <= 300:  # 5 minut przed respem
+            await ping_resp(champion)
+            resp_times[champion] = next_resp(last_resp)
+
+# ------------------- KOMENDY -------------------
+@bot.command()
+async def resp(ctx):
+    """Pokazuje kiedy respił się czempion"""
+    msg = ""
+    now = datetime.utcnow()
+    for champion, last_resp in resp_times.items():
+        remaining = next_resp(last_resp) - now
+        msg += f"{champion}: ostatni resp {last_resp.strftime('%H:%M:%S')}, za {str(remaining).split('.')[0]}\n"
+    if not msg:
+        msg = "Brak zapisanych respów."
+    await ctx.send(msg)
+
+@bot.command()
+async def set_resp(ctx, champion: str):
+    """Ręcznie ustawia czas resp czempiona na teraz"""
+    resp_times[champion] = datetime.utcnow()
+    await ctx.send(f"Czas respu dla {champion} zapisany!")
+
+@bot.command()
+async def del_resp(ctx, champion: str):
+    """Usuwa zapisany czas respu czempiona"""
+    if champion in resp_times:
+        del resp_times[champion]
+        await ctx.send(f"Czas respu dla {champion} usunięty!")
+    else:
+        await ctx.send(f"Nie znaleziono czempiona {champion}.")
+
+# ------------------- URUCHOMIENIE -------------------
+async def main():
+    check_resp.start()
+    async with bot:
+        await bot.start(TOKEN)
+
+if __name__ == "__main__":
+    # Flask w osobnym wątku
+    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=3000)).start()
+    # Discord bot
+    asyncio.run(main())
