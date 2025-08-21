@@ -6,67 +6,196 @@ from datetime import datetime, timedelta
 import threading
 import os
 
-TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+# ------------------- KONFIGURACJA -------------------
+TOKEN = os.getenv("DISCORD_BOT_TOKEN")  # Token z zmiennych środowiskowych
+# Ustaw te wartości dla swojego serwera i kanału:
+GUILD_ID = None  # Wklej ID serwera (opcjonalne)
+CHANNEL_ID = None  # Wklej ID kanału, gdzie bot będzie pingował (opcjonalne - użyje aktualnego kanału)
 
+RESP_TIME = timedelta(hours=5, minutes=30)  # Czas między respami czempionów
+
+# ------------------- FLASK -------------------
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return """
+    <h1>Bot do trackowania respów czempionów działa!</h1>
+    <h2>Dostępne komendy:</h2>
+    <ul>
+        <li><code>!resp</code> - pokazuje kiedy respią się czempioni</li>
+        <li><code>!set_resp [nazwa_czempiona]</code> - ustawia czas respu na teraz</li>
+        <li><code>!del_resp [nazwa_czempiona]</code> - usuwa czempiona z listy</li>
+        <li><code>!pomoc</code> - pomoc</li>
+    </ul>
+    <p>Bot automatycznie pinguje @everyone 5 minut przed respem czempiona!</p>
+    """
+
+# ------------------- DISCORD BOT -------------------
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-app = Flask(__name__)
+# ------------------- ZMIENNE -------------------
+# Przechowuje czasy respów w formacie {czempion: datetime}
+resp_times = {}
 
-@app.route('/')
-def home():
-    return "Bot działa!"
+# ------------------- FUNKCJE -------------------
+def next_resp(last_resp):
+    return last_resp + RESP_TIME
+
+async def ping_resp(champion, channel):
+    await channel.send(f"🔔 @everyone **{champion}** resp w lochu za 5 minut! 🔔")
+
+# ------------------- TASK SPRAWDZAJĄCY RESP -------------------
+@tasks.loop(minutes=1)
+async def check_resp():
+    now = datetime.utcnow()
+    for champion, last_resp in resp_times.copy().items():
+        next_resp_time = last_resp + RESP_TIME
+        remaining_seconds = (next_resp_time - now).total_seconds()
+        
+        # Jeśli zostało 5 minut lub mniej do respu
+        if 0 < remaining_seconds <= 300:  # 5 minut = 300 sekund
+            # Znajdź kanał do pingowania
+            channel = None
+            if CHANNEL_ID:
+                channel = bot.get_channel(CHANNEL_ID)
+            else:
+                # Jeśli nie ma ustawionego kanału, użyj pierwszego dostępnego kanału tekstowego
+                for guild in bot.guilds:
+                    for ch in guild.text_channels:
+                        if ch.permissions_for(guild.me).send_messages:
+                            channel = ch
+                            break
+                    if channel:
+                        break
+            
+            if channel:
+                await ping_resp(champion, channel)
+            
+            # Ustaw następny czas respu
+            resp_times[champion] = next_resp_time
 
 @bot.event
 async def on_ready():
     print(f'{bot.user} jest online!')
+    print(f'Bot jest na {len(bot.guilds)} serwerach')
+    
+    # Uruchom sprawdzanie respów
+    if not check_resp.is_running():
+        check_resp.start()
+        print("Timer sprawdzania respów uruchomiony!")
 
-@bot.command(name='ping')
-async def ping(ctx):
-    """Sprawdza ping bota"""
-    latency = round(bot.latency * 1000)
-    await ctx.send(f'Pong! {latency}ms')
-
-@bot.command(name='czas')
-async def czas(ctx):
-    """Pokazuje aktualny czas"""
-    teraz = datetime.now()
-    await ctx.send(f'Aktualny czas: {teraz.strftime("%H:%M:%S %d.%m.%Y")}')
-
-@bot.command(name='info')
-async def info(ctx):
-    """Informacje o bocie"""
-    embed = discord.Embed(
-        title="Informacje o bocie",
-        description="Discord bot z Flask backend",
-        color=0x00ff00
-    )
-    embed.add_field(name="Serwery", value=len(bot.guilds), inline=True)
-    embed.add_field(name="Użytkownicy", value=len(bot.users), inline=True)
-    embed.add_field(name="Ping", value=f"{round(bot.latency * 1000)}ms", inline=True)
-    await ctx.send(embed=embed)
-
-# Przykład timera
-@tasks.loop(minutes=30)
-async def okresowa_wiadomosc():
-    """Wysyła wiadomość co 30 minut"""
-    print("Timer działa - bot jest aktywny")
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
+# ------------------- KOMENDY -------------------
+@bot.command()
+async def resp(ctx):
+    """Pokazuje kiedy respił się czempion"""
+    if not resp_times:
+        await ctx.send("📋 **Brak zapisanych respów czempionów.**\n\nUżyj `!set_resp [nazwa]` aby dodać czempiona.")
         return
     
-    # Odpowiedz na "cześć"
-    if message.content.lower() in ['cześć', 'czesc', 'hej', 'witaj']:
-        await message.channel.send(f'Cześć {message.author.mention}!')
+    now = datetime.utcnow()
+    embed = discord.Embed(title="⏰ Status respów czempionów", color=0x00ff00)
     
-    await bot.process_commands(message)
+    for champion, last_resp in resp_times.items():
+        next_resp_time = next_resp(last_resp)
+        remaining = next_resp_time - now
+        
+        if remaining.total_seconds() > 0:
+            hours, remainder = divmod(int(remaining.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            time_str = f"{hours}h {minutes}m {seconds}s"
+            status = f"🕐 Za: **{time_str}**"
+        else:
+            status = "✅ **DOSTĘPNY TERAZ!**"
+        
+        embed.add_field(
+            name=f"🐉 {champion}",
+            value=f"Ostatni resp: {last_resp.strftime('%H:%M:%S')}\n{status}",
+            inline=True
+        )
+    
+    await ctx.send(embed=embed)
 
-# Uruchom bota
+@bot.command()
+async def set_resp(ctx, *, champion: str):
+    """Ręcznie ustawia czas resp czempiona na teraz"""
+    champion = champion.strip().title()
+    resp_times[champion] = datetime.utcnow()
+    
+    embed = discord.Embed(
+        title="✅ Resp zapisany!",
+        description=f"**{champion}** - czas respu ustawiony na teraz",
+        color=0x00ff00
+    )
+    embed.add_field(
+        name="Następny resp za:",
+        value=f"{RESP_TIME.total_seconds() / 3600:.1f} godzin",
+        inline=False
+    )
+    
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def del_resp(ctx, *, champion: str):
+    """Usuwa zapisany czas respu czempiona"""
+    champion = champion.strip().title()
+    
+    if champion in resp_times:
+        del resp_times[champion]
+        embed = discord.Embed(
+            title="🗑️ Resp usunięty",
+            description=f"**{champion}** został usunięty z listy respów",
+            color=0xff6b6b
+        )
+    else:
+        embed = discord.Embed(
+            title="❌ Nie znaleziono",
+            description=f"Nie znaleziono czempiona **{champion}** na liście",
+            color=0xff6b6b
+        )
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name='pomoc')
+async def pomoc(ctx):
+    """Pokazuje pomoc dla komend bota"""
+    embed = discord.Embed(
+        title="🤖 Pomoc - Bot respów czempionów",
+        description="Bot automatycznie śledzi czasy respów czempionów i pinguje 5 minut przed ich powrotem!",
+        color=0x0099ff
+    )
+    
+    embed.add_field(
+        name="📋 !resp",
+        value="Pokazuje listę wszystkich czempionów i ich czasy respów",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="➕ !set_resp [nazwa]",
+        value="Dodaje czempiona i ustawia jego czas respu na teraz\nPrzykład: `!set_resp Smok Lodowy`",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🗑️ !del_resp [nazwa]",
+        value="Usuwa czempiona z listy respów\nPrzykład: `!del_resp Smok Lodowy`",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="ℹ️ Informacje",
+        value=f"• Czas między respami: **{RESP_TIME.total_seconds() / 3600:.1f} godzin**\n• Bot pinguje @everyone 5 minut przed respem\n• Wszystkie czasy w UTC",
+        inline=False
+    )
+    
+    await ctx.send(embed=embed)
+
+# ------------------- URUCHOMIENIE -------------------
 async def main():
     if not TOKEN:
         print("BŁĄD: Nie znaleziono tokenu Discord bota!")
@@ -74,13 +203,10 @@ async def main():
         return
     
     async with bot:
-        # Uruchom timer
-        okresowa_wiadomosc.start()
         await bot.start(TOKEN)
 
-# Flask uruchamia się w osobnym wątku
 if __name__ == "__main__":
-    # Uruchom Flask w osobnym wątku
+    # Flask w osobnym wątku
     flask_thread = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=5000, debug=False))
     flask_thread.daemon = True
     flask_thread.start()
@@ -88,5 +214,5 @@ if __name__ == "__main__":
     print("Flask server uruchomiony na porcie 5000")
     print("Uruchamianie Discord bota...")
     
-    # Uruchom Discord bota
+    # Discord bot
     asyncio.run(main())
